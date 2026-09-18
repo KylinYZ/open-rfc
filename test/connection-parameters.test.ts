@@ -228,6 +228,31 @@ test("normalizes lowercase and uppercase direct RFC parameters", () => {
   assert.equal(languageSapToIso("D"), "DE");
 });
 
+test("normalizes ISO and numeric logon languages to the SAP key", () => {
+  // SAP 登录语言键不全是字母：中文 ZH→"1"。ISO 代码与合法单字符键
+  // （含数字键与小写键）都必须归一化通过，否则中文等语言无法登录。
+  const base = {
+    ashost: "sap.example.test",
+    sysnr: 0,
+    client: "001",
+    user: "RFCUSER",
+    passwd: "secret",
+  } as const;
+  assert.equal(
+    normalizeDirectConnectionParameters({ ...base, lang: "ZH" }).language,
+    "1",
+  );
+  assert.equal(
+    normalizeDirectConnectionParameters({ ...base, lang: "1" }).language,
+    "1",
+  );
+  assert.equal(
+    normalizeDirectConnectionParameters({ ...base, lang: "a" }).language,
+    "a",
+  );
+  assert.equal(normalizeDirectConnectionParameters(base).language, "E");
+});
+
 test("normalizes and hides MYSAPSSO2 instead of requiring a password", () => {
   const captured = captureDirectConnectionParameters({
     ASHOST: "sap.example.test",

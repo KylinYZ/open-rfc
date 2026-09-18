@@ -550,6 +550,55 @@ test("encodes a ticket credential in place of the password field", () => {
   );
 });
 
+test("encodes numeric and lowercase SAP language keys verbatim", () => {
+  // SAP 登录语言键不全是字母且区分大小写：中文 ZH→"1"，南非荷兰语 AF→"a"。
+  // 数字键必须放行编码，全部键必须原样写入——大写化会把小写键变成
+  // 另一个语言的键（"a"=南非荷兰语 vs "A"=阿拉伯语）。
+  for (const language of ["1", "a", "E"] as const) {
+    const encoded = encodeCpicInitialLogonRequest({
+      client: "001",
+      user: "RFCUSR",
+      password: "secret",
+      language,
+      clientAddress: "127.0.0.1",
+      partnerHostName: "host.example.test",
+      destination: "127.0.0.1",
+      programName: "open-rfc",
+      sessionId: Buffer.alloc(16),
+      passwordSeed: 1,
+    });
+    const chain = decodeCpicFieldChainPrefix(
+      encoded.subarray(18),
+      CpicTag.Start,
+      CpicTag.End,
+    ).fields;
+    const languageField = chain.find(({ tag }) => tag === CpicTag.Language);
+    assert.notEqual(languageField, undefined);
+    assert.equal(
+      Buffer.from(languageField!.value).toString("ascii"),
+      language,
+    );
+  }
+  // 非字母数字的单字符键仍然拒绝：协议层只放行 ASCII 字母与数字，
+  // 冷门的非 ASCII SAP 键（如韩文键）fail closed 而不是错误编码。
+  assert.throws(
+    () =>
+      encodeCpicInitialLogonRequest({
+        client: "001",
+        user: "RFCUSR",
+        password: "secret",
+        language: "&",
+        clientAddress: "127.0.0.1",
+        partnerHostName: "host.example.test",
+        destination: "127.0.0.1",
+        programName: "open-rfc",
+        sessionId: Buffer.alloc(16),
+        passwordSeed: 1,
+      }),
+    /language must contain one ASCII letter or digit/u,
+  );
+});
+
 test("rejects malformed initial logon fields and identity bounds", () => {
   const base = {
     client: "001",
