@@ -83,13 +83,29 @@ async function materialize() {
     fail("CommonJS output manifest could not be materialized");
   }
   const finalMetadata = await lstat(destination);
-  if (
-    !finalMetadata.isFile() ||
-    finalMetadata.isSymbolicLink() ||
-    (finalMetadata.mode & 0o777) !== 0o644
-  ) {
+  if (!finalMetadata.isFile() || finalMetadata.isSymbolicLink()) {
+    fail("CommonJS output manifest is not a regular file");
+  }
+  if (!modeMatches(finalMetadata.mode & 0o777, 0o644)) {
     fail("CommonJS output manifest mode is not deterministic");
   }
+}
+
+/**
+ * Compare a real file mode against the intended POSIX mode.
+ *
+ * Windows filesystems (NTFS/FAT) have no executable bit and map the
+ * read-only attribute to the write bits only, so a freshly written file is
+ * always reported as 0o666 no matter what chmod requested; the 0o444 read
+ * bits are also unrepresentable. The strict byte-for-byte comparison is
+ * therefore reserved for POSIX; on Windows we only assert the read bits are
+ * present (the file was not accidentally locked down).
+ */
+function modeMatches(actual, intended) {
+  if (process.platform === "win32") {
+    return (actual & 0o444) === 0o444;
+  }
+  return actual === intended;
 }
 
 try {

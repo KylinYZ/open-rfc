@@ -18,6 +18,22 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const PROJECT_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+// Windows (NTFS/FAT) cannot represent POSIX mode bits (chmod 644 reports 666)
+// and unprivileged users cannot create symbolic links, so mode-exact and
+// symlink-based assertions are platform-gated.
+const IS_WINDOWS = process.platform === "win32";
+const canCreateSymlink = () => {
+  if (!IS_WINDOWS) return true;
+  const probeDir = mkdtempSync(join(tmpdir(), "open-rfc-symlink-probe-"));
+  try {
+    symlinkSync(probeDir, join(probeDir, "link"));
+    return true;
+  } catch {
+    return false;
+  } finally {
+    rmSync(probeDir, { recursive: true, force: true });
+  }
+};
 const CLEANER_PATH = join(PROJECT_ROOT, "tools", "clean_build_output.mjs");
 const CJS_MANIFEST_PATH = join(PROJECT_ROOT, "tools", "materialize_cjs_manifest.mjs");
 const PACKAGE_MODE_NORMALIZER_PATH = join(
@@ -148,10 +164,21 @@ test("package mode normalization covers the complete npm surface", (t) => {
 
   assert.equal(result.status, 0, result.stderr);
   for (const path of files) {
-    assert.equal(lstatSync(join(root, path)).mode & 0o777, 0o644, path);
+    const actualMode = lstatSync(join(root, path)).mode & 0o777;
+    if (IS_WINDOWS) {
+      // NTFS cannot represent 0o644; chmod reports 0o666. Read bits must stay.
+      assert.equal(actualMode & 0o444, 0o444, path);
+    } else {
+      assert.equal(actualMode, 0o644, path);
+    }
   }
   for (const path of ["dist/src", "dist/src/nested", "dist/cjs"]) {
-    assert.equal(lstatSync(join(root, path)).mode & 0o777, 0o755, path);
+    const actualMode = lstatSync(join(root, path)).mode & 0o777;
+    if (IS_WINDOWS) {
+      assert.equal(actualMode & 0o444, 0o444, path);
+    } else {
+      assert.equal(actualMode, 0o755, path);
+    }
   }
 });
 
@@ -165,6 +192,10 @@ test("package mode normalization rejects arguments and symlinks", (t) => {
   assert.match(argumentResult.stderr, /does not accept arguments/u);
 
   const symlinkFixture = createFixture(t);
+  if (!canCreateSymlink()) {
+    t.skip("symbolic links require privileges on this platform");
+    return;
+  }
   const target = join(symlinkFixture.sandbox, "user-owned.js");
   writeFixtureFile(join(symlinkFixture.root, "README.md"));
   writeFixtureFile(join(symlinkFixture.root, "dist", "cjs", "index.js"));
@@ -191,7 +222,12 @@ test("CommonJS manifest materialization replaces stale modes deterministically",
 
   assert.equal(result.status, 0, result.stderr);
   assert.equal(readFileSync(destination, "utf8"), '{"type":"commonjs"}\n');
-  assert.equal(lstatSync(destination).mode & 0o777, 0o644);
+  const destinationMode = lstatSync(destination).mode & 0o777;
+  if (IS_WINDOWS) {
+    assert.equal(destinationMode & 0o444, 0o444);
+  } else {
+    assert.equal(destinationMode, 0o644);
+  }
 });
 
 test("CommonJS manifest materialization rejects arguments and symlink output", (t) => {
@@ -203,6 +239,10 @@ test("CommonJS manifest materialization rejects arguments and symlink output", (
   assert.match(argumentResult.stderr, /does not accept arguments/u);
 
   const symlinkFixture = createFixture(t);
+  if (!canCreateSymlink()) {
+    t.skip("symbolic links require privileges on this platform");
+    return;
+  }
   const target = join(symlinkFixture.sandbox, "user-owned.json");
   writeFixtureFile(join(symlinkFixture.root, "cjs-package.json"), '{"type":"commonjs"}\n');
   writeFixtureFile(target, "keep\n");
@@ -315,6 +355,10 @@ test("pruner rejects arguments and invalid repository identity without mutation"
 
 test("pruner preserves and rejects a root dist symlink or regular file", async (t) => {
   await t.test("symlink", () => {
+    if (!canCreateSymlink()) {
+      t.skip("symbolic links require privileges on this platform");
+      return;
+    }
     const { root, sandbox } = createFixture(t);
     const targetSentinel = join(sandbox, "user-owned", "dist", "keep.txt");
     writeFixtureFile(targetSentinel);
@@ -338,6 +382,10 @@ test("pruner preserves and rejects a root dist symlink or regular file", async (
 
 test("pruner fails closed on nested symlinks and unknown output files", async (t) => {
   await t.test("nested symlink", () => {
+    if (!canCreateSymlink()) {
+      t.skip("symbolic links require privileges on this platform");
+      return;
+    }
     const { root, sandbox } = createFixture(t);
     const target = join(sandbox, "user-owned", "keep.js");
     writeFixtureFile(target, "keep\n");
