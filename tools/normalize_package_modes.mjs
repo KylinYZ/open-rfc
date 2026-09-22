@@ -48,7 +48,7 @@ async function normalizeFile(path, label, totals) {
   }
   await chmod(path, 0o644);
   const finalValue = await inspect(path, label);
-  if (!finalValue.isFile() || (finalValue.mode & 0o777) !== 0o644) {
+  if (!finalValue.isFile() || !modeMatches(finalValue.mode & 0o777, 0o644)) {
     fail(`${label} mode is not deterministic`);
   }
 }
@@ -82,9 +82,27 @@ async function normalizeDirectory(path, label, totals) {
   }
   await chmod(path, 0o755);
   const finalValue = await inspect(path, label);
-  if (!finalValue.isDirectory() || (finalValue.mode & 0o777) !== 0o755) {
+  if (!finalValue.isDirectory() || !modeMatches(finalValue.mode & 0o777, 0o755)) {
     fail(`${label} mode is not deterministic`);
   }
+}
+
+/**
+ * Compare a real file mode against the intended POSIX mode.
+ *
+ * Windows filesystems (NTFS/FAT) have no executable bit and map the
+ * read-only attribute to the write bits only, so a freshly written file or
+ * directory is always reported as 0o666 no matter what chmod requested; the
+ * 0o444 read bits and the 0o111 execute bits are not representable. The
+ * strict byte-for-byte comparison is therefore reserved for POSIX; on
+ * Windows we only assert the read bits are present (the entry was not
+ * accidentally locked down).
+ */
+function modeMatches(actual, intended) {
+  if (process.platform === "win32") {
+    return (actual & 0o444) === 0o444;
+  }
+  return actual === intended;
 }
 
 async function normalizePackageModes() {
