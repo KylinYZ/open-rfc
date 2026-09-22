@@ -1,6 +1,6 @@
 {
-  "name": "open-rfc",
-  "version": "0.2.3",
+  "name": "@kylinyz/open-rfc",
+  "version": "0.2.4-kylin.1",
   "description": "SDK-free TypeScript client for SAP classic RFC with node-rfc compatibility facades",
   "private": false,
   "license": "Apache-2.0",
@@ -50,11 +50,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/marianfoo/open-rfc.git"
+    "url": "git+https://github.com/KylinYZ/open-rfc.git"
   },
-  "homepage": "https://marianfoo.github.io/open-rfc/",
+  "homepage": "https://github.com/KylinYZ/open-rfc#readme",
   "bugs": {
-    "url": "https://github.com/marianfoo/open-rfc/issues"
+    "url": "https://github.com/KylinYZ/open-rfc/issues"
   },
   "keywords": [
     "sap",

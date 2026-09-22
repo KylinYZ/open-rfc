@@ -12,7 +12,9 @@ import { fileURLToPath } from "node:url";
 
 const MAX_MANIFEST_BYTES = 1024 * 1024;
 const MAX_OUTPUT_ENTRIES = 10_000;
-const EXPECTED_PACKAGE_NAME = "open-rfc";
+// Fork 发布适配：本分支以 @kylinyz/open-rfc 名义发布 npm 包，
+// 构建工具的仓库身份校验必须跟随 fork 包名。
+const EXPECTED_PACKAGE_NAME = "@kylinyz/open-rfc";
 // tsconfig.json emits declarations and JavaScript without external maps;
 // tsconfig.cjs.json emits CommonJS declarations and JavaScript. Keep these
 // roots explicit so a
