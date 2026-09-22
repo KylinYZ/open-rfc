@@ -47,7 +47,13 @@ function writeFixtureFile(path, content = "fixture\n") {
   writeFileSync(path, content);
 }
 
-function createFixture(t, manifest = { name: "open-rfc", type: "module" }) {
+// 清理工具校验工作区身份用的是真实包名，fixture 的默认 manifest 必须跟随，
+// 否则 fork 改名（如 @kylinyz/open-rfc）后身份校验恒失败。
+const PACKAGE_NAME = JSON.parse(
+  readFileSync(join(PROJECT_ROOT, "package.json"), "utf8"),
+).name;
+
+function createFixture(t, manifest = { name: PACKAGE_NAME, type: "module" }) {
   const sandbox = mkdtempSync(join(tmpdir(), "open-rfc-build-clean-"));
   const root = join(sandbox, "repo");
   mkdirSync(join(root, "tools"), { recursive: true });
