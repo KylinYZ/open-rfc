@@ -1093,8 +1093,7 @@ export function encodeCpicInitialLogonRequest(
   if (!/^\d{3}$/.test(input.client)) {
     throw new RangeError("client must contain exactly three ASCII digits");
   }
-  // SAP 登录语言键不全是字母：中文 ZH→"1"、韩语 KO→"3"、泰语 TH→"2"。
-  // 校验必须放行单字符数字键，否则中文等语言在编码阶段即被拒绝。
+  // SAP uses numeric keys too: Chinese = 1, Thai = 2, Korean = 3.
   if (!/^[A-Za-z0-9]$/.test(input.language)) {
     throw new RangeError("language must contain one ASCII letter or digit");
   }
@@ -1147,8 +1146,7 @@ export function encodeCpicInitialLogonRequest(
       { tag: credentialTag, value: credential },
       {
         tag: CpicTag.Language,
-        // SAP 语言键区分大小写（AF→"a"、CA→"c"、IS→"b"），大写化会把
-        // 小写键变成另一个语言的键，必须按调用方给定的键原样写入。
+        // Uppercasing a SAP key can select a different language.
         value: Buffer.from(input.language, "ascii"),
       },
       { tag: CpicTag.UnicodeIndicator, value: Buffer.of(1) },

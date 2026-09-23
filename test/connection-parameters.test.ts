@@ -7,6 +7,7 @@ import {
   languageIsoToSap,
   languageSapToIso,
   normalizeDirectConnectionParameters,
+  normalizeRfcLogonParameters,
   snapshotDirectConnectionParameters,
 } from "../src/compat/connection-parameters.js";
 
@@ -228,9 +229,7 @@ test("normalizes lowercase and uppercase direct RFC parameters", () => {
   assert.equal(languageSapToIso("D"), "DE");
 });
 
-test("normalizes ISO and numeric logon languages to the SAP key", () => {
-  // SAP 登录语言键不全是字母：中文 ZH→"1"。ISO 代码与合法单字符键
-  // （含数字键与小写键）都必须归一化通过，否则中文等语言无法登录。
+test("normalizes ISO logon languages and preserves case-sensitive SAP keys", () => {
   const base = {
     ashost: "sap.example.test",
     sysnr: 0,
@@ -238,19 +237,32 @@ test("normalizes ISO and numeric logon languages to the SAP key", () => {
     user: "RFCUSER",
     passwd: "secret",
   } as const;
-  assert.equal(
-    normalizeDirectConnectionParameters({ ...base, lang: "ZH" }).language,
-    "1",
-  );
-  assert.equal(
-    normalizeDirectConnectionParameters({ ...base, lang: "1" }).language,
-    "1",
-  );
-  assert.equal(
-    normalizeDirectConnectionParameters({ ...base, lang: "a" }).language,
-    "a",
-  );
+  const cases = [
+    ["SR", "0"], ["ZH", "1"], ["TH", "2"], ["KO", "3"], ["RO", "4"],
+    ["SL", "5"], ["HR", "6"], ["MS", "7"], ["UK", "8"], ["ET", "9"],
+    ["AF", "a"], ["AR", "A"], ["IS", "b"], ["HE", "B"], ["CA", "c"],
+    ["CS", "C"], ["SH", "d"], ["DE", "D"], ["ID", "i"], ["IT", "I"],
+    ["EN", "E"],
+  ] as const;
+  for (const [iso, sap] of cases) {
+    for (const lang of [iso, iso.toLowerCase(), sap]) {
+      assert.equal(
+        normalizeDirectConnectionParameters({ ...base, lang }).language,
+        sap,
+        lang,
+      );
+      assert.equal(
+        normalizeRfcLogonParameters({ CLIENT: "001", LANG: lang }).language,
+        sap,
+        lang,
+      );
+    }
+  }
   assert.equal(normalizeDirectConnectionParameters(base).language, "E");
+  assert.throws(
+    () => normalizeDirectConnectionParameters({ ...base, lang: "e" }),
+    /Language ISO code not found/u,
+  );
 });
 
 test("normalizes and hides MYSAPSSO2 instead of requiring a password", () => {
